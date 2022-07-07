@@ -128,7 +128,7 @@ class SmsruCallcheckHandler extends CallcheckHandler
 
         if (ArrayHelper::getValue($data, 'status') == "OK") {
             $callcheckMessage->status = CmsCallcheckMessage::STATUS_OK;
-            $callcheckMessage->code = ArrayHelper::getValue($data, 'code');
+            $callcheckMessage->code = (string) ArrayHelper::getValue($data, 'code');
         } else {
             $callcheckMessage->status = CmsCallcheckMessage::STATUS_ERROR;
             $callcheckMessage->error_message = ArrayHelper::getValue($data, 'status_text');

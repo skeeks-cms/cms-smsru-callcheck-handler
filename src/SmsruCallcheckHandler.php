@@ -9,8 +9,7 @@
 namespace skeeks\cms\callcheck\smsru;
 
 use skeeks\cms\callcheck\CallcheckHandler;
-use skeeks\cms\models\CmsSmsMessage;
-use skeeks\cms\sms\SmsHandler;
+use skeeks\cms\models\CmsCallcheckMessage;
 use skeeks\yii2\form\fields\FieldSet;
 use yii\base\Exception;
 use yii\helpers\ArrayHelper;
@@ -43,7 +42,6 @@ class SmsruCallcheckHandler extends CallcheckHandler
         return ArrayHelper::merge(parent::rules(), [
             [['api_key'], 'required'],
             [['api_key'], 'string'],
-            [['sender'], 'string'],
         ]);
     }
 
@@ -51,7 +49,6 @@ class SmsruCallcheckHandler extends CallcheckHandler
     {
         return ArrayHelper::merge(parent::attributeLabels(), [
             'api_key' => "API ключ",
-            'sender'  => "Отправитель",
 
         ]);
     }
@@ -75,7 +72,6 @@ class SmsruCallcheckHandler extends CallcheckHandler
                 'name'   => 'Основные',
                 'fields' => [
                     'api_key',
-                    'sender',
                 ],
             ],
         ];
@@ -83,24 +79,25 @@ class SmsruCallcheckHandler extends CallcheckHandler
 
 
     /**
-     * @see https://smsimple.ru/api-http/
+     * @see https://sms.ru/api/code_call
      *
-     * @param      $phone
-     * @param      $text
-     * @param null $sender
-     * @return $message_id
+     * @param $phone
+     * @return array
+     * @throws Exception
+     * @throws \yii\base\InvalidConfigException
+     * @throws \yii\httpclient\Exception
      */
-    public function send($phone, $text, $sender = null)
+    public function callcheck($phone)
     {
         $queryString = http_build_query([
-            'api_id' => $this->api_key,
-            'to'     => $phone,
-            'msg'    => $text,
-            'json'   => 1,
-            'partner_id'   => 145700,
+            'api_id'     => $this->api_key,
+            'phone'      => $phone,
+            'ip'         => \Yii::$app->request->userIP,
+            'partner_id' => 145700,
         ]);
 
         $url = 'https://sms.ru/code/call?'.$queryString;
+
 
         $client = new Client();
         $response = $client
@@ -116,26 +113,28 @@ class SmsruCallcheckHandler extends CallcheckHandler
         return $response->data;
     }
 
-    public function sendMessage(CmsSmsMessage $cmsSmsMessage)
+    /**
+     * @param CmsCallcheckMessage $callcheckMessage
+     * @return bool
+     * @throws Exception
+     */
+    public function callcheckMessage(CmsCallcheckMessage $callcheckMessage)
     {
-        $data = $this->send($cmsSmsMessage->phone, $cmsSmsMessage->message);
-        if (ArrayHelper::getValue($data, 'status') == "ERROR") {
-            $cmsSmsMessage->status = CmsSmsMessage::STATUS_ERROR;
-            $cmsSmsMessage->provider_status = (string)ArrayHelper::getValue($data, 'status');
-            $cmsSmsMessage->error_message = ArrayHelper::getValue($data, 'status_text');
-            return;
+        $data = $this->callcheck($callcheckMessage->phone);
+
+        $callcheckMessage->provider_response_data = (array)$data;
+        $callcheckMessage->provider_status = (string)ArrayHelper::getValue($data, 'status');
+        $callcheckMessage->provider_call_id = (string)ArrayHelper::getValue($data, 'call_id');
+
+        if (ArrayHelper::getValue($data, 'status') == "OK") {
+            $callcheckMessage->status = CmsCallcheckMessage::STATUS_OK;
+            $callcheckMessage->code = ArrayHelper::getValue($data, 'code');
+        } else {
+            $callcheckMessage->status = CmsCallcheckMessage::STATUS_ERROR;
+            $callcheckMessage->error_message = ArrayHelper::getValue($data, 'status_text');
         }
 
-        $status = ArrayHelper::getValue($data, ['sms', $cmsSmsMessage->phone, 'status']);
-        if ($status == "OK") {
-            $cmsSmsMessage->status = CmsSmsMessage::STATUS_DELIVERED;
-            $cmsSmsMessage->provider_status = (string)ArrayHelper::getValue($data, ['sms', $cmsSmsMessage->phone, 'status_code']);
-            $cmsSmsMessage->provider_message_id = ArrayHelper::getValue($data, ['sms', $cmsSmsMessage->phone, 'sms_id']);
-        } else {
-            $cmsSmsMessage->status = CmsSmsMessage::STATUS_ERROR;
-            $cmsSmsMessage->provider_status = (string)ArrayHelper::getValue($data, ['sms', $cmsSmsMessage->phone, 'status_code']);
-            $cmsSmsMessage->error_message = ArrayHelper::getValue($data, ['sms', $cmsSmsMessage->phone, 'status_text']);
-        }
+        return true;
     }
 
 }

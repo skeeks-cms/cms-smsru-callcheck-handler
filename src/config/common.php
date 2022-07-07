@@ -2,7 +2,7 @@
 return [
     'components' => [
         'cms' => [
-            'smsHandlers'             => [
+            'callcheckHandlers'             => [
                 'smsru' => [
                     'class' => \skeeks\cms\callcheck\smsru\SmsruCallcheckHandler::class
                 ]

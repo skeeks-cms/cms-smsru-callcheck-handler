@@ -32,7 +32,7 @@ class SmsruCallcheckHandler extends CallcheckHandler
     static public function descriptorConfig()
     {
         return array_merge(parent::descriptorConfig(), [
-            'name' => \Yii::t('skeeks/shop/app', 'sms.ru'),
+            'name' => \Yii::t('skeeks/cms', 'sms.ru'),
         ]);
     }
 
